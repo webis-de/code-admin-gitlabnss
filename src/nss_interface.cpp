@@ -60,14 +60,6 @@ void populatePasswd(passwd& pwd, const User::Reader& user, std::span<char> buffe
 }
 
 extern "C" {
-#if 0
-nss_status _nss_gitlab_getspnam_r(const char* name, spwd* spwd, char* buf, size_t buflen, int* errnop) {
-	SPDLOG_LOGGER_DEBUG(logger, "getspnam_r({})", name);
-	/** \todo implement **/
-	return nss_status::NSS_STATUS_NOTFOUND;
-};
-#endif
-
 nss_status _nss_gitlab_getpwuid_r(uid_t uid, passwd* pwd, char* buf, size_t buflen, int* errnop) {
 	SPDLOG_LOGGER_DEBUG(logger, "getpwuid_r({})", uid);
 	if (uid < config.nss.uidOffset)
@@ -129,26 +121,6 @@ nss_status _nss_gitlab_getpwnam_r(const char* name, passwd* pwd, char* buf, size
 	}
 }
 
-#if 0
-nss_status _nss_gitlab_setpwent() {
-	SPDLOG_LOGGER_DEBUG(logger, "setpwent()");
-	/** \todo implement **/
-	return nss_status::NSS_STATUS_NOTFOUND;
-}
-
-nss_status _nss_gitlab_getpwent_r(passwd* pwd, char* buf, size_t buflen, int* errnop) {
-	SPDLOG_LOGGER_DEBUG(logger, "getpwent_r()");
-	/** \todo implement **/
-	return nss_status::NSS_STATUS_NOTFOUND;
-}
-
-nss_status _nss_gitlab_endpwent() {
-	SPDLOG_LOGGER_DEBUG(logger, "endpwent()");
-	/** \todo implement **/
-	return nss_status::NSS_STATUS_NOTFOUND;
-}
-#endif
-
 /**********************************************************************************************************************/
 /* GROUPS                                                                                                             */
 /**********************************************************************************************************************/
@@ -156,7 +128,7 @@ void populateGroup(group& group, const Group::Reader& obj, std::span<char> buffe
 	auto stream = std::ospanstream(buffer);
 	// Username
 	group.gr_name = buffer.data() + stream.tellp();
-	stream << obj.getName().cStr() << '\0';
+	stream << config.nss.resolveGroupName({obj.getName().cStr()}) << '\0';
 	// Password
 	const char Password[] = "*"; // user can't login with PW: https://www.man7.org/linux/man-pages/man5/shadow.5.html
 	group.gr_passwd = buffer.data() + stream.tellp();
@@ -168,7 +140,7 @@ void populateGroup(group& group, const Group::Reader& obj, std::span<char> buffe
 }
 
 nss_status _nss_gitlab_getgrgid_r(gid_t gid, group* result_buf, char* buf, size_t buflen, group** result) {
-	SPDLOG_LOGGER_INFO(logger, "getgrgid_r({})", gid);
+	SPDLOG_LOGGER_DEBUG(logger, "getgrgid_r({})", gid);
 	if (gid < config.nss.gidOffset)
 		return nss_status::NSS_STATUS_NOTFOUND;
 	auto io = kj::setupAsyncIo();
@@ -202,7 +174,7 @@ nss_status _nss_gitlab_getgrgid_r(gid_t gid, group* result_buf, char* buf, size_
 }
 
 nss_status _nss_gitlab_getgrnam_r(const char* name, group* result_buf, char* buf, size_t buflen, group** result) {
-	SPDLOG_LOGGER_INFO(logger, "getgrnam_r({})", name);
+	SPDLOG_LOGGER_DEBUG(logger, "getgrnam_r({})", name);
 	auto io = kj::setupAsyncIo();
 	auto& waitScope = io.waitScope;
 	auto daemon = initClient(io);
@@ -229,6 +201,57 @@ nss_status _nss_gitlab_getgrnam_r(const char* name, group* result_buf, char* buf
 		SPDLOG_LOGGER_ERROR(logger, "Other Error");
 		SPDLOG_LOGGER_ERROR(logger, "Error {}", promise.getErrcode());
 		*result = nullptr;
+		return nss_status::NSS_STATUS_UNAVAIL;
+	}
+}
+
+/**********************************************************************************************************************/
+/* GROUPS                                                                                                             */
+/**********************************************************************************************************************/
+nss_status _nss_gitlab_initgroups_dyn(
+		const char* username, gid_t group, long int* start, long int* size, gid_t** groups, long int limit, int* errnop
+) {
+	// Its not well documented how this should behave but we can have a look at sssd for reference:
+	// https://github.com/SSSD/sssd/blob/0c0afb24706ec343563833ea0c654b298dcdcf59/src/sss_client/nss_group.c#L375-L404
+	SPDLOG_LOGGER_DEBUG(logger, "initgroups_dyn({}, {}, {}, {}, {})", username, group, (intptr_t)start, *size, limit);
+	auto io = kj::setupAsyncIo();
+	auto& waitScope = io.waitScope;
+	auto daemon = initClient(io);
+
+	if (!daemon)
+		return NSS_STATUS_UNAVAIL;
+
+	auto request = daemon->getUserByNameRequest();
+	request.setName(username);
+	auto promise = request.send().wait(waitScope);
+
+	auto user = promise.getUser();
+	switch (static_cast<Error>(promise.getErrcode())) {
+	case Error::Ok:
+		if (limit < 0 || limit > user.getGroups().size())
+			limit = user.getGroups().size();
+		// Check if groups is large enough, otherwise extend it
+		if (*start + limit > *size) {
+			*groups = static_cast<gid_t*>(std::realloc(*groups, (*start + limit) * sizeof(gid_t)));
+			if (*groups == nullptr) {
+				*errnop = ENOMEM;
+				return NSS_STATUS_TRYAGAIN;
+			}
+			*size = *start + limit;
+		}
+		// Populate groups
+		for (size_t i = 0; i < limit; ++i) {
+			(*groups)[*start] = user.getGroups()[i].getId() + config.nss.gidOffset;
+			*start += 1;
+		}
+		SPDLOG_LOGGER_DEBUG(logger, "Found!");
+		return nss_status::NSS_STATUS_SUCCESS;
+	case Error::NotFound:
+		SPDLOG_LOGGER_DEBUG(logger, "Not Found");
+		return nss_status::NSS_STATUS_NOTFOUND;
+	default:
+		SPDLOG_LOGGER_ERROR(logger, "Other Error");
+		SPDLOG_LOGGER_ERROR(logger, "Error {}", promise.getErrcode());
 		return nss_status::NSS_STATUS_UNAVAIL;
 	}
 }

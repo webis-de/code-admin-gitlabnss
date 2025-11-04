@@ -2,6 +2,7 @@
 #define CONFIG_HPP
 
 #include <filesystem>
+#include <map>
 #include <string>
 
 struct Config {
@@ -26,13 +27,16 @@ struct Config {
 		std::string baseUrl;
 		std::string apikey;
 	} gitlabapi;
-	struct {
+	struct NSS {
 		std::filesystem::path homesRoot;
 		uint16_t homePerms;
 		unsigned uidOffset;
 		unsigned gidOffset;
 		std::string groupPrefix;
 		std::string shell;
+		std::map<std::string, std::string> groupMapping;
+
+		std::string resolveGroupName(const std::string& name) const;
 	} nss;
 
 	static Config fromFile(const std::filesystem::path& file) noexcept;

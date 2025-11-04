@@ -14,6 +14,13 @@ static std::optional<std::string> tryReadSecret(const std::filesystem::path& pat
 	return std::nullopt;
 }
 
+std::string Config::NSS::resolveGroupName(const std::string& name) const {
+	auto it = groupMapping.find(name);
+	if (it != groupMapping.end())
+		return it->second;
+	return groupPrefix + name;
+}
+
 Config Config::fromFile(const std::filesystem::path& file) noexcept {
 	auto config = toml::parse_file(file.string());
 	if (!config) {

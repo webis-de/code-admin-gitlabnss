@@ -8,7 +8,7 @@
     AuthorizedKeysCommand /bin/fetchgitlabkeys
     AuthorizedKeysCommandUser root
     ```
-4. Modify `/etc/gitlabnss/gitlabnss.conf` to fit your needs. Particularly: set `base_url` to the GitLab API endpoint of your choice and `secret` to a **FILE** that contains the API key. Make sure that the `secret` file can only be read by root (owner: `root` and permissions `0400`). 
+4. Modify `/etc/gitlabnss/gitlabnss.conf` to fit your needs. Particularly: set `base_url` to the GitLab API endpoint of your choice and `secret` to a **FILE** that contains the API key (requires `read_api`). Make sure that the `secret` file can only be read by root (owner: `root` and permissions `0400`). 
 5. Start the service: On Ubuntu run `systemctl enable gitlabnssd` or `/etc/init.d/gitlabnssd start` to start the service.
 
 ## How it Works
@@ -59,6 +59,10 @@ AuthorizedKeysCommandUser root
 ```
 
 ## Naming
-https://www.gnu.org/software/libc/manual/html_mono/libc.html#NSS-Module-Names
+https://sourceware.org/glibc/manual/latest/html_mono/libc.html#NSS-Module-Names
 
 `_nss_<service>_<function>`
+
+
+## Releasing a New Version
+1. Create a new Release via the [https://github.com/webis-de/code-admin-gitlabnss/releases](GitHub Release page); A new action should start automatically to build the latest release and automatically adds the debian package to the released assets.

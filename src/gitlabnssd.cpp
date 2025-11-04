@@ -6,6 +6,8 @@
 #include <config.hpp>
 #include <gitlabapi.hpp>
 
+#include <lrucache.hpp>
+
 #include <spdlog/sinks/basic_file_sink.h>
 #include <spdlog/sinks/stdout_color_sinks.h>
 #include <spdlog/spdlog.h>
@@ -13,6 +15,7 @@
 #include <capnp/ez-rpc.h>
 #include <protocol/messages.capnp.h>
 
+#include <any>
 #include <csignal>
 #include <filesystem>
 #include <fstream>
@@ -45,17 +48,37 @@ class GitLabDaemonImpl final : public GitLabDaemon::Server {
 private:
 	Config config;
 	gitlab::GitLab gitlab;
+	cache::lru_cache<std::string, std::any> cache{20}; // Cache for the most recent 20 calls.
+
+	template <typename T>
+	bool findInCache(const std::string& cacheId, T& value) {
+		if (cache.exists(cacheId)) {
+			spdlog::info("Found in cache");
+			if (const T* val = std::any_cast<T>(&cache.get(cacheId))) {
+				value = *val;
+				return true;
+			} else {
+				spdlog::error("Type error (this should not happen)");
+			}
+		} else {
+			spdlog::info("Cachemiss");
+		}
+		return false;
+	}
 
 public:
 	GitLabDaemonImpl(Config config) : config(config), gitlab(this->config) {}
 
 	virtual ::kj::Promise<void> getUserByID(GetUserByIDContext context) override {
 		spdlog::info("getUserByID({})", context.getParams().getId());
+		auto cacheId = std::format("getUserByID({})", context.getParams().getId());
 		gitlab::User user;
-		Error err;
-		if ((err = gitlab.fetchUserByID(context.getParams().getId(), user)) == Error::Ok &&
-			(err = gitlab.fetchGroups(user)) == Error::Ok) {
+		Error err = Error::Ok;
+		if (findInCache(cacheId, user) ||
+			((err = gitlab.fetchUserByID(context.getParams().getId(), user)) == Error::Ok &&
+			 (err = gitlab.fetchGroups(user)) == Error::Ok)) {
 			spdlog::debug("Found");
+			cache.put(cacheId, user);
 			auto output = context.getResults().initUser();
 			output.setId(user.id);
 			output.setName(user.name);
@@ -71,11 +94,14 @@ public:
 	}
 	virtual ::kj::Promise<void> getUserByName(GetUserByNameContext context) override {
 		spdlog::info("getUserByName({})", context.getParams().getName().cStr());
+		auto cacheId = std::format("getUserByName({})", context.getParams().getName().cStr());
 		gitlab::User user;
-		Error err;
-		if ((err = gitlab.fetchUserByUsername(context.getParams().getName().cStr(), user)) == Error::Ok &&
-			(err = gitlab.fetchGroups(user)) == Error::Ok) {
+		Error err = Error::Ok;
+		if (findInCache(cacheId, user) ||
+			((err = gitlab.fetchUserByUsername(context.getParams().getName().cStr(), user)) == Error::Ok &&
+			 (err = gitlab.fetchGroups(user)) == Error::Ok)) {
 			spdlog::debug("Found");
+			cache.put(cacheId, user);
 			auto output = context.getResults().initUser();
 			output.setId(user.id);
 			output.setName(user.name);
@@ -110,10 +136,13 @@ public:
 
 	virtual ::kj::Promise<void> getGroupByID(GetGroupByIDContext context) override {
 		spdlog::info("getGroupByID({})", context.getParams().getId());
+		auto cacheId = std::format("getGroupByID({})", context.getParams().getId());
 		gitlab::Group group;
-		Error err;
-		if ((err = gitlab.fetchGroupByID(context.getParams().getId(), group)) == Error::Ok) {
+		Error err = Error::Ok;
+		if (findInCache(cacheId, group) ||
+			(err = gitlab.fetchGroupByID(context.getParams().getId(), group)) == Error::Ok) {
 			spdlog::debug("Found");
+			cache.put(cacheId, group);
 			auto output = context.getResults().initGroup();
 			output.setId(group.id);
 			output.setName(group.name);
@@ -123,10 +152,13 @@ public:
 	}
 	virtual ::kj::Promise<void> getGroupByName(GetGroupByNameContext context) override {
 		spdlog::info("getGroupByName({})", context.getParams().getName().cStr());
+		auto cacheId = std::format("getGroupByName({})", context.getParams().getName().cStr());
 		gitlab::Group group;
-		Error err;
-		if ((err = gitlab.fetchGroupByName(context.getParams().getName().cStr(), group)) == Error::Ok) {
+		Error err = Error::Ok;
+		if (findInCache(cacheId, group) ||
+			(err = gitlab.fetchGroupByName(context.getParams().getName().cStr(), group)) == Error::Ok) {
 			spdlog::debug("Found");
+			cache.put(cacheId, group);
 			auto output = context.getResults().initGroup();
 			output.setId(group.id);
 			output.setName(group.name);
