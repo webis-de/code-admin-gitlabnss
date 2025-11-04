@@ -102,5 +102,5 @@ target_link_libraries(gitlabnssd tomlplusplus::tomlplusplus)
 
 # cpp-lru-cache
 FetchContent_Declare(lrucache GIT_REPOSITORY https://github.com/lamerman/cpp-lru-cache.git GIT_TAG de1c4a03569bf3bd540e7f55ab5c2961411dbe22 EXCLUDE_FROM_ALL)
-FetchContent_MakeAvailable(lrucache)
+FetchContent_Populate(lrucache)
 target_include_directories(gitlabnssd PUBLIC ${lrucache_SOURCE_DIR}/include)
