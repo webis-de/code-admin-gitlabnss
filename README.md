@@ -1,7 +1,7 @@
 
 # For Users
 1. Install from the debian package: `sudo dpkg -i nssgitlab.deb`
-2. Configure NSS:
+2. Configure NSS by adding `gitlab` to the lines in `/etc/nsswitch.conf` starting with `passwd:` and `groups:`.
 3. Optionally to support SSH login (via public keys added to GitLab):
     Add these lines to `/etc/ssh/sshd_config`
     ```
