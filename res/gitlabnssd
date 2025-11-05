@@ -1,5 +1,7 @@
 #! /bin/sh
 
+# I used /etc/init.d/sshd to get inspiration on how this should be written :P
+
 ### BEGIN INIT INFO
 # Provides:             gitlabnssd fetchgitlabkeys
 # Required-Start:       $remote_fs $syslog
@@ -10,8 +12,6 @@
 ### END INIT INFO
 
 set -e
-
-# /etc/init.d/ssh: start and stop the OpenBSD "secure shell(tm)" daemon
 
 test -x /bin/gitlabnssd || exit 0
 
