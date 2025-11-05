@@ -31,6 +31,12 @@ static auto initLogger() {
 static auto logger = initLogger();
 static auto config = Config::fromFile(fs::current_path().root_path() / "etc" / "gitlabnss" / "gitlabnss.conf");
 
+static auto getGroupId(const Group::Reader& group) {
+	if (group.getLocal())
+		return group.getId();
+	return group.getId() + config.nss.gidOffset;
+}
+
 void populatePasswd(passwd& pwd, const User::Reader& user, std::span<char> buffer) {
 	auto stream = std::ospanstream(buffer);
 	// Username
@@ -43,7 +49,7 @@ void populatePasswd(passwd& pwd, const User::Reader& user, std::span<char> buffe
 	// UID
 	pwd.pw_uid = user.getId() + config.nss.uidOffset;
 	// GID
-	pwd.pw_gid = user.getGroups().size() > 0 ? (user.getGroups()[0].getId() + config.nss.gidOffset) : 65534 /*nogroup*/;
+	pwd.pw_gid = user.getGroups().size() > 0 ? getGroupId(user.getGroups()[0]) : 65534 /*nogroup*/;
 	// Real Name
 	pwd.pw_gecos = buffer.data() + stream.tellp();
 	stream << user.getName().cStr() << '\0';
@@ -128,13 +134,13 @@ void populateGroup(group& group, const Group::Reader& obj, std::span<char> buffe
 	auto stream = std::ospanstream(buffer);
 	// Username
 	group.gr_name = buffer.data() + stream.tellp();
-	stream << config.nss.resolveGroupName({obj.getName().cStr()}) << '\0';
+	stream << (obj.getLocal() ? "" : config.nss.groupPrefix) << obj.getName().cStr() << '\0';
 	// Password
 	const char Password[] = "*"; // user can't login with PW: https://www.man7.org/linux/man-pages/man5/shadow.5.html
 	group.gr_passwd = buffer.data() + stream.tellp();
 	stream << Password << '\0';
 	// GID
-	group.gr_gid = obj.getId() + config.nss.gidOffset;
+	group.gr_gid = getGroupId(obj);
 	// Members
 	group.gr_mem = nullptr;
 }
@@ -241,7 +247,7 @@ nss_status _nss_gitlab_initgroups_dyn(
 		}
 		// Populate groups
 		for (size_t i = 0; i < limit; ++i) {
-			(*groups)[*start] = user.getGroups()[i].getId() + config.nss.gidOffset;
+			(*groups)[*start] = getGroupId(user.getGroups()[i]);
 			*start += 1;
 		}
 		SPDLOG_LOGGER_DEBUG(logger, "Found!");

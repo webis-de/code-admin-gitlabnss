@@ -17,6 +17,7 @@ struct Config {
 	static constexpr unsigned DefaultUIDOffset = 0;
 	static constexpr unsigned DefaultGIDOffset = 0;
 	static constexpr const char DefaultShell[] = "/usr/bin/bash";
+	static constexpr const char DefaultGroupPrefix[] = "";
 
 	struct {
 		std::filesystem::path socketPath;
@@ -35,8 +36,6 @@ struct Config {
 		std::string groupPrefix;
 		std::string shell;
 		std::map<std::string, std::string> groupMapping;
-
-		std::string resolveGroupName(const std::string& name) const;
 	} nss;
 
 	static Config fromFile(const std::filesystem::path& file) noexcept;

@@ -14,11 +14,17 @@ static std::optional<std::string> tryReadSecret(const std::filesystem::path& pat
 	return std::nullopt;
 }
 
-std::string Config::NSS::resolveGroupName(const std::string& name) const {
-	auto it = groupMapping.find(name);
-	if (it != groupMapping.end())
-		return it->second;
-	return groupPrefix + name;
+static std::map<std::string, std::string> tomap(const toml::table* table) {
+	if (table == nullptr) { /** \todo notify user of error? **/
+		return {};
+	}
+	std::map<std::string, std::string> ret;
+	for (const auto& [key, value] : *table)
+		value.value<std::string>().and_then([&](const auto& val) {
+			ret[std::string{key.str()}] = val;
+			return std::optional{val};
+		});
+	return ret;
 }
 
 Config Config::fromFile(const std::filesystem::path& file) noexcept {
@@ -49,8 +55,9 @@ Config Config::fromFile(const std::filesystem::path& file) noexcept {
 						.homePerms = table["nss"]["homes_permissions"].value_or(Config::DefaultHomePerms),
 						.uidOffset = table["nss"]["uid_offset"].value_or(Config::DefaultUIDOffset),
 						.gidOffset = table["nss"]["gid_offset"].value_or(Config::DefaultGIDOffset),
-						.groupPrefix = table["nss"]["group_prefix"].value_or(""),
-						.shell = table["nss"]["shell"].value_or(Config::DefaultShell)}
+						.groupPrefix = table["nss"]["group_prefix"].value_or(Config::DefaultGroupPrefix),
+						.shell = table["nss"]["shell"].value_or(Config::DefaultShell),
+						.groupMapping = tomap(table["nss"]["group_mapping"].as_table())}
 		};
 	}
 }

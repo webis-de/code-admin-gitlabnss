@@ -37,7 +37,7 @@ namespace gitlab {
 		Error fetchAuthorizedKeys(UserID id, std::vector<std::string>& keys) const;
 		Error fetchGroups(User& user) const;
 
-		Error fetchGroupByName(std::string groupname, Group& group) const;
+		Error fetchGroupByName(const std::string& groupname, Group& group) const;
 		Error fetchGroupByID(GroupID id, Group& group) const;
 	};
 } // namespace gitlab

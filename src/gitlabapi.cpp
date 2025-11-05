@@ -89,18 +89,23 @@ Error GitLab::fetchGroups(User& user) const {
 	return Error::Ok;
 }
 
-Error GitLab::fetchGroupByName(std::string groupname, Group& group) const {
+Error GitLab::fetchGroupByName(const std::string& groupname, Group& group) const {
 	/**  \todo should not hurt to apply url-encoding of the groupname **/
-	auto fetched = fetch(config, std::format("{}/groups?name={}", config.gitlabapi.baseUrl, groupname));
+	auto fetched = fetch(config, std::format("{}/groups?search={}", config.gitlabapi.baseUrl, groupname));
 	if (!fetched.has_value())
 		return fetched.error();
 	auto& json = fetched.value();
-	if (!json.IsArray() || json.Size() != 1)
+	if (!json.IsArray())
 		return Error::ResponseFormatError;
-	auto& groupJson = json[0];
-	group.id = groupJson["id"].Get<decltype(group.id)>();
-	group.name = groupJson["name"].GetString();
-	return Error::Ok;
+	for (size_t i = 0; i < json.Size(); ++i) {
+		const auto& groupJson = json[i];
+		if (groupname == groupJson["name"].GetString()) {
+			group.id = groupJson["id"].Get<decltype(group.id)>();
+			group.name = groupJson["name"].GetString();
+			return Error::Ok;
+		}
+	}
+	return Error::NotFound;
 }
 
 Error GitLab::fetchGroupByID(GroupID id, Group& group) const {

@@ -5,6 +5,9 @@ using GroupID = UInt32;
 struct Group {
     id @0 :GroupID;
     name @1 :Text;
+    # A "local" group is one that was resolved using the nss.group_mapping configuration. Its ID is a local group ID
+    # and should not be offset.
+    local @2 :Bool;
 }
 
 using UserID = UInt32;

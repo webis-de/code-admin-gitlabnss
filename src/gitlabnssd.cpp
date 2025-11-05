@@ -15,6 +15,8 @@
 #include <capnp/ez-rpc.h>
 #include <protocol/messages.capnp.h>
 
+#include <grp.h>
+
 #include <any>
 #include <csignal>
 #include <filesystem>
@@ -49,6 +51,7 @@ private:
 	Config config;
 	gitlab::GitLab gitlab;
 	cache::lru_cache<std::string, std::any> cache{20}; // Cache for the most recent 20 calls.
+	std::map<gitlab::GroupID, gid_t> groupMap;
 
 	template <typename T>
 	bool findInCache(const std::string& cacheId, T& value) {
@@ -66,8 +69,33 @@ private:
 		return false;
 	}
 
+	std::map<gitlab::GroupID, gid_t> resolveGroupMap() {
+		std::map<gitlab::GroupID, gid_t> ret;
+		spdlog::info("Resolving Group Map");
+		spdlog::info("\tgitlab (id) -> host (id)");
+		gitlab::Group group;
+		for (const auto& [gitlabgrp, hostgrp] : config.nss.groupMapping) {
+			if (Error err; (err = gitlab.fetchGroupByName(gitlabgrp, group)) == Error::Ok) {
+				if (::group* grp; (grp = getgrnam(hostgrp.c_str())) != nullptr) {
+					spdlog::info("\t{} ({}) -> {} ({})", gitlabgrp, group.id, hostgrp, grp->gr_gid);
+					ret[group.id] = grp->gr_gid;
+				} else {
+					spdlog::error(
+							"\tFailed to resolve group {} on host with errno {}; I will ignore it", hostgrp, errno
+					);
+				}
+			} else {
+				spdlog::error(
+						"\tFailed to resolve GitLab group {} with error {}; I will ignore it", gitlabgrp,
+						static_cast<unsigned>(err)
+				);
+			}
+		}
+		return ret;
+	}
+
 public:
-	GitLabDaemonImpl(Config config) : config(config), gitlab(this->config) {}
+	GitLabDaemonImpl(Config config) : config(config), gitlab(this->config), groupMap(resolveGroupMap()) {}
 
 	virtual ::kj::Promise<void> getUserByID(GetUserByIDContext context) override {
 		spdlog::info("getUserByID({})", context.getParams().getId());
@@ -85,8 +113,17 @@ public:
 			output.setUsername(user.username);
 			auto groups = output.initGroups(user.groups.size());
 			for (auto i = 0; i < user.groups.size(); ++i) {
-				groups[i].setId(user.groups[i].id);
-				groups[i].setName(user.groups[i].name);
+				if (decltype(groupMap)::iterator it; (it = groupMap.find(user.groups[i].id)) != groupMap.end()) {
+					// Group mapped to host group
+					groups[i].setId(it->second);
+					groups[i].setName("");
+					groups[i].setLocal(true);
+				} else {
+					// GitLab group
+					groups[i].setId(user.groups[i].id);
+					groups[i].setName(user.groups[i].name);
+					groups[i].setLocal(false);
+				}
 			}
 		}
 		context.getResults().setErrcode(static_cast<uint32_t>(err));
@@ -108,8 +145,17 @@ public:
 			output.setUsername(user.username);
 			auto groups = output.initGroups(user.groups.size());
 			for (auto i = 0; i < user.groups.size(); ++i) {
-				groups[i].setId(user.groups[i].id);
-				groups[i].setName(user.groups[i].name);
+				if (decltype(groupMap)::iterator it; (it = groupMap.find(user.groups[i].id)) != groupMap.end()) {
+					// Group mapped to host group
+					groups[i].setId(it->second);
+					groups[i].setName("");
+					groups[i].setLocal(true);
+				} else {
+					// GitLab group
+					groups[i].setId(user.groups[i].id);
+					groups[i].setName(user.groups[i].name);
+					groups[i].setLocal(false);
+				}
 			}
 		}
 		context.getResults().setErrcode(static_cast<uint32_t>(err));
