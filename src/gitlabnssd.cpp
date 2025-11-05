@@ -76,7 +76,7 @@ private:
 		gitlab::Group group;
 		for (const auto& [gitlabgrp, hostgrp] : config.nss.groupMapping) {
 			if (Error err; (err = gitlab.fetchGroupByName(gitlabgrp, group)) == Error::Ok) {
-				if (::group* grp; (grp = getgrnam(hostgrp.c_str())) != nullptr) {
+				if (::group* grp = getgrnam(hostgrp.c_str())) {
 					spdlog::info("\t{} ({}) -> {} ({})", gitlabgrp, group.id, hostgrp, grp->gr_gid);
 					ret[group.id] = grp->gr_gid;
 				} else {
