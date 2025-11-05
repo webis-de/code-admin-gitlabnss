@@ -37,8 +37,10 @@ Error GitLab::fetchUserByUsername(std::string username, User& user) const {
 	if (!fetched.has_value())
 		return fetched.error();
 	auto& json = fetched.value();
-	if (!json.IsArray() || json.Size() != 1)
+	if (!json.IsArray())
 		return Error::ResponseFormatError;
+	else if (json.Size() != 1)
+		return Error::NotFound;
 	auto& userJson = json[0];
 	user.id = userJson["id"].Get<decltype(user.id)>();
 	user.username = userJson["username"].GetString();
