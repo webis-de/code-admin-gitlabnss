@@ -42,7 +42,7 @@ add_library(nss_gitlab SHARED # <- This truly must be shared
 )
 set_target_properties(nss_gitlab PROPERTIES
     SOVERSION 2  # Required by GNU: https://www.gnu.org/software/libc/manual/html_mono/libc.html#NSS-Module-Names
-	VERSION   ${NSSGITLAB_VERSION}
+	VERSION   ${GITLABNSS_VERSION}
 )
 target_include_directories(nss_gitlab PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/../include)
 target_compile_features(nss_gitlab PUBLIC cxx_std_23)

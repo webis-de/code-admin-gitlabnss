@@ -20,12 +20,14 @@ jobs:
         run: cmake -S ./ -B ./build/ -G "Ninja Multi-Config" -D CMAKE_BUILD_TYPE=Release -D BUILD_SHARED_LIBS=NO
       - name: Build Debian package
         run: cmake --build ./build/ --config Release --target package -j 16
+      - name: Rename Debian package
+        run: mv build/gitlabnss-*-Linux.deb build/gitlabnss.deb
       - name: Upload Debian package
         uses: actions/upload-artifact@v4
         with:
           name: debian-package
           if-no-files-found: error
-          path: build/nssgitlab-*-Linux.deb
+          path: build/gitlabnss.deb
   check-codestyle:
     name: Check Codestyle
     runs-on: ubuntu-24.04
