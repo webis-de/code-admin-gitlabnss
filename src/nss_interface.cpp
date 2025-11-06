@@ -24,13 +24,12 @@ static auto initLogger() {
 	auto console_sink = std::make_shared<spdlog::sinks::stdout_color_sink_mt>();
 #endif
 	// auto filesink = std::make_shared<spdlog::sinks::basic_file_sink_mt>("/var/log/gitlabnss-client.log");
-	auto filesink =
-			std::make_shared<spdlog::sinks::rotating_file_sink_mt>("/var/log/gitlabnss.log", 5 * 1024 * 1024, 3);
+	// auto filesink = std::make_shared<spdlog::sinks::rotating_file_sink_mt>("/var/log/gitlabnss-client.log", 5 * 1024 * 1024, 3);
 	std::vector<spdlog::sink_ptr> sinks{
 #if DEBUG
 			console_sink,
 #endif
-			filesink
+			// filesink
 	};
 	auto logger = std::make_shared<spdlog::logger>("", sinks.begin(), sinks.end());
 	logger->set_level(spdlog::level::trace);

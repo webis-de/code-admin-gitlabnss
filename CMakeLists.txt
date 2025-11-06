@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.14 FATAL_ERROR)
 
-set(GITLABNSS_VERSION 0.9.3)
+set(GITLABNSS_VERSION 0.9.4)
 
 project(gitlabnss VERSION ${GITLABNSS_VERSION} LANGUAGES CXX)
 
