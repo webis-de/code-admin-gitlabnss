@@ -20,6 +20,9 @@ int main(int argc, char* argv[]) {
 	if (static_cast<Error>(userresp.getErrcode()) != Error::Ok)
 		return userresp.getErrcode();
 
+	if (std::string("active") != userresp.getUser().getState().cStr())
+		return -3;
+
 	// Get the ssh public keys from user by ID via RPC to the daemon
 	auto keyreq = daemon->getSSHKeysRequest();
 	keyreq.setId(userresp.getUser().getId());

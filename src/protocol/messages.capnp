@@ -18,6 +18,7 @@ struct User {
     name @2 :Text;
     # Sorted such that primary group is first
     groups @3 :List(Group);
+    state @4 :Text;
 }
 
 interface GitLabDaemon {

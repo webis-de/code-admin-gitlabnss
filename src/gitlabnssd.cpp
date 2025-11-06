@@ -8,7 +8,7 @@
 
 #include <lrucache.hpp>
 
-#include <spdlog/sinks/basic_file_sink.h>
+#include <spdlog/sinks/rotating_file_sink.h>
 #include <spdlog/sinks/stdout_color_sinks.h>
 #include <spdlog/spdlog.h>
 
@@ -33,12 +33,14 @@ static void initLogger() {
 #if DEBUG
 	auto console_sink = std::make_shared<spdlog::sinks::stdout_color_sink_mt>();
 #endif
-	auto basic_sink = std::make_shared<spdlog::sinks::basic_file_sink_mt>("/var/log/gitlabnss.log");
+	// auto filesink = std::make_shared<spdlog::sinks::basic_file_sink_mt>("/var/log/gitlabnss.log");
+	auto filesink =
+			std::make_shared<spdlog::sinks::rotating_file_sink_mt>("/var/log/gitlabnss.log", 5 * 1024 * 1024, 3);
 	std::vector<spdlog::sink_ptr> sinks{
 #if DEBUG
 			console_sink,
 #endif
-			basic_sink
+			filesink
 	};
 	auto logger = std::make_shared<spdlog::logger>("", sinks.begin(), sinks.end());
 	logger->set_level(spdlog::level::trace);
@@ -111,6 +113,7 @@ public:
 			output.setId(user.id);
 			output.setName(user.name);
 			output.setUsername(user.username);
+			output.setState(user.state);
 			auto groups = output.initGroups(user.groups.size());
 			for (auto i = 0; i < user.groups.size(); ++i) {
 				if (decltype(groupMap)::iterator it; (it = groupMap.find(user.groups[i].id)) != groupMap.end()) {
@@ -143,6 +146,7 @@ public:
 			output.setId(user.id);
 			output.setName(user.name);
 			output.setUsername(user.username);
+			output.setState(user.state);
 			auto groups = output.initGroups(user.groups.size());
 			for (auto i = 0; i < user.groups.size(); ++i) {
 				if (decltype(groupMap)::iterator it; (it = groupMap.find(user.groups[i].id)) != groupMap.end()) {
@@ -243,8 +247,9 @@ int main(int argc, char* argv[]) {
 	if (chmod(socketPath.c_str(), static_cast<mode_t>(config.general.socketPerms)) != 0)
 		spdlog::warn("Failed to change permissions with errno {}", errno);
 
-	spdlog::info("Instantiating SIGINT handler");
+	spdlog::info("Instantiating SIGINT and SIGTERM handlers");
 	std::signal(SIGINT, +[](int signal) { fulfiller->fulfill(); });
+	std::signal(SIGTERM, +[](int signal) { fulfiller->fulfill(); });
 
 	// Run until SIGINT is signaled; accept connections and handle requests.
 	spdlog::info("Listening...");

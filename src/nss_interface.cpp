@@ -2,7 +2,7 @@
 #include <error.hpp>
 #include <rpcclient.hpp>
 
-#include <spdlog/sinks/basic_file_sink.h>
+#include <spdlog/sinks/rotating_file_sink.h>
 #include <spdlog/sinks/stdout_color_sinks.h>
 #include <spdlog/spdlog.h>
 
@@ -23,12 +23,14 @@ static auto initLogger() {
 #if DEBUG
 	auto console_sink = std::make_shared<spdlog::sinks::stdout_color_sink_mt>();
 #endif
-	auto basic_sink = std::make_shared<spdlog::sinks::basic_file_sink_mt>("/var/log/gitlabnss-client.log");
+	// auto filesink = std::make_shared<spdlog::sinks::basic_file_sink_mt>("/var/log/gitlabnss-client.log");
+	auto filesink =
+			std::make_shared<spdlog::sinks::rotating_file_sink_mt>("/var/log/gitlabnss.log", 5 * 1024 * 1024, 3);
 	std::vector<spdlog::sink_ptr> sinks{
 #if DEBUG
 			console_sink,
 #endif
-			basic_sink
+			filesink
 	};
 	auto logger = std::make_shared<spdlog::logger>("", sinks.begin(), sinks.end());
 	logger->set_level(spdlog::level::trace);
@@ -92,15 +94,18 @@ nss_status _nss_gitlab_getpwuid_r(uid_t uid, passwd* pwd, char* buf, size_t bufl
 	auto promise = request.send().wait(waitScope);
 
 	auto user = promise.getUser();
-	switch (static_cast<Error>(promise.getErrcode())) {
-	case Error::Ok:
+	auto err = static_cast<Error>(promise.getErrcode());
+	if (err == Error::Ok && std::string("active") == user.getState().cStr()) {
 		populatePasswd(*pwd, user, {buf, buflen});
 		SPDLOG_LOGGER_DEBUG(logger, "Found!");
 		return nss_status::NSS_STATUS_SUCCESS;
-	case Error::NotFound:
+	} else if (err == Error::Ok) {
+		SPDLOG_LOGGER_DEBUG(logger, "User is not active (status: {})", user.getState().cStr());
+		return nss_status::NSS_STATUS_NOTFOUND;
+	} else if (err == Error::NotFound) {
 		SPDLOG_LOGGER_DEBUG(logger, "Not Found");
 		return nss_status::NSS_STATUS_NOTFOUND;
-	default:
+	} else {
 		SPDLOG_LOGGER_ERROR(logger, "Other Error");
 		SPDLOG_LOGGER_ERROR(logger, "Error {}", promise.getErrcode());
 		return nss_status::NSS_STATUS_UNAVAIL;
@@ -121,15 +126,18 @@ nss_status _nss_gitlab_getpwnam_r(const char* name, passwd* pwd, char* buf, size
 	auto promise = request.send().wait(waitScope);
 
 	auto user = promise.getUser();
-	switch (static_cast<Error>(promise.getErrcode())) {
-	case Error::Ok:
+	auto err = static_cast<Error>(promise.getErrcode());
+	if (err == Error::Ok && std::string("active") == user.getState().cStr()) {
 		populatePasswd(*pwd, user, {buf, buflen});
 		SPDLOG_LOGGER_DEBUG(logger, "Found!");
 		return nss_status::NSS_STATUS_SUCCESS;
-	case Error::NotFound:
+	} else if (err == Error::Ok) {
+		SPDLOG_LOGGER_DEBUG(logger, "User is not active (status: {})", user.getState().cStr());
+		return nss_status::NSS_STATUS_NOTFOUND;
+	} else if (err == Error::NotFound) {
 		SPDLOG_LOGGER_DEBUG(logger, "Not Found");
 		return nss_status::NSS_STATUS_NOTFOUND;
-	default:
+	} else {
 		SPDLOG_LOGGER_ERROR(logger, "Other Error");
 		SPDLOG_LOGGER_ERROR(logger, "Error {}", promise.getErrcode());
 		return nss_status::NSS_STATUS_UNAVAIL;
@@ -241,8 +249,8 @@ nss_status _nss_gitlab_initgroups_dyn(
 	auto promise = request.send().wait(waitScope);
 
 	auto user = promise.getUser();
-	switch (static_cast<Error>(promise.getErrcode())) {
-	case Error::Ok:
+	auto err = static_cast<Error>(promise.getErrcode());
+	if (err == Error::Ok && std::string("active") == user.getState().cStr()) {
 		if (limit < 0 || limit > user.getGroups().size())
 			limit = user.getGroups().size();
 		// Check if groups is large enough, otherwise extend it
@@ -261,10 +269,13 @@ nss_status _nss_gitlab_initgroups_dyn(
 		}
 		SPDLOG_LOGGER_DEBUG(logger, "Found!");
 		return nss_status::NSS_STATUS_SUCCESS;
-	case Error::NotFound:
+	} else if (err == Error::Ok) {
+		SPDLOG_LOGGER_DEBUG(logger, "User is not active (status: {})", user.getState().cStr());
+		return nss_status::NSS_STATUS_NOTFOUND;
+	} else if (err == Error::NotFound) {
 		SPDLOG_LOGGER_DEBUG(logger, "Not Found");
 		return nss_status::NSS_STATUS_NOTFOUND;
-	default:
+	} else {
 		SPDLOG_LOGGER_ERROR(logger, "Other Error");
 		SPDLOG_LOGGER_ERROR(logger, "Error {}", promise.getErrcode());
 		return nss_status::NSS_STATUS_UNAVAIL;

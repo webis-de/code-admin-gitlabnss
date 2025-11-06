@@ -45,6 +45,7 @@ Error GitLab::fetchUserByUsername(std::string username, User& user) const {
 	user.id = userJson["id"].Get<decltype(user.id)>();
 	user.username = userJson["username"].GetString();
 	user.name = userJson["name"].GetString();
+	user.state = userJson["state"].GetString();
 	return Error::Ok;
 }
 
@@ -59,6 +60,7 @@ Error GitLab::fetchUserByID(UserID id, User& user) const {
 	user.id = userJson["id"].Get<decltype(user.id)>();
 	user.username = userJson["username"].GetString();
 	user.name = userJson["name"].GetString();
+	user.state = userJson["state"].GetString();
 	return Error::Ok;
 }
 

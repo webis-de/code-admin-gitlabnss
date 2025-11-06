@@ -20,6 +20,7 @@ namespace gitlab {
 		UserID id;
 		std::string username;
 		std::string name;
+		std::string state;
 
 		std::vector<Group> groups;
 	};
