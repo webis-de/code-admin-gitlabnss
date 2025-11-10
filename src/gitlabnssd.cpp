@@ -176,7 +176,7 @@ public:
 			// std::string joined = keys | std::views::join | std::ranges::to<std::string>();
 			std::string joined;
 			for (auto&& key : keys)
-				joined += key;
+				joined += key + "\n";
 
 			context.getResults().setKeys(joined);
 		}
