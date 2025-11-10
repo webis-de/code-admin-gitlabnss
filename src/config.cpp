@@ -52,6 +52,7 @@ Config Config::fromFile(const std::filesystem::path& file) noexcept {
 										   .and_then(tryReadSecret)
 										   .value_or(""s)},
 				.nss = {.homesRoot = std::filesystem::path{table["nss"]["homes_root"].value_or("/homes/"s)},
+						.createHomedirs = table["nss"]["create_homedirs"].value_or(false),
 						.homePerms = table["nss"]["homes_permissions"].value_or(Config::DefaultHomePerms),
 						.uidOffset = table["nss"]["uid_offset"].value_or(Config::DefaultUIDOffset),
 						.gidOffset = table["nss"]["gid_offset"].value_or(Config::DefaultGIDOffset),

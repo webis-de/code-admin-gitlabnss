@@ -1,7 +1,43 @@
 cmake_minimum_required(VERSION 3.14 FATAL_ERROR)
 
-set(GITLABNSS_VERSION 0.9.4)
+##########################################################################################
+# Versioning
+##########################################################################################
+find_package(Git)
 
+if(GIT_EXECUTABLE)
+	execute_process(
+		COMMAND ${GIT_EXECUTABLE} describe --tags --dirty
+		WORKING_DIRECTORY ${CMAKE_CURRENT_LIST_DIR}
+		OUTPUT_VARIABLE GIT_DESCRIBE_VERSION
+		RESULT_VARIABLE GIT_DESCRIBE_ERROR_CODE
+		OUTPUT_STRIP_TRAILING_WHITESPACE
+    )
+	if(NOT GIT_DESCRIBE_ERROR_CODE)
+		string(REGEX MATCH "([0-9]+).([0-9]+).([0-9]+)(-.+)?" _ "${GIT_DESCRIBE_VERSION}")
+		set(GITLABNSS_VER_MAJOR ${CMAKE_MATCH_1} CACHE INTERNAL "")
+		set(GITLABNSS_VER_MINOR ${CMAKE_MATCH_2} CACHE INTERNAL "")
+		set(GITLABNSS_VER_PATCH ${CMAKE_MATCH_3} CACHE INTERNAL "")
+		set(GITLABNSS_VER_META  ${CMAKE_MATCH_4} CACHE INTERNAL "")
+	else()
+		message(WARNING "Could not extract version information from the latest tag, ${GIT_DESCRIBE_VERSION}")
+	endif()
+endif()
+if(NOT DEFINED GITLABNSS_VER_MAJOR OR NOT DEFINED GITLABNSS_VER_MINOR OR NOT DEFINED GITLABNSS_VER_PATCH)
+	message(WARNING "I failed to read the current version from the latest git tag.")
+
+	set(GITLABNSS_VER_MAJOR "0" CACHE INTERNAL "")
+	set(GITLABNSS_VER_MINOR "0" CACHE INTERNAL "")
+	set(GITLABNSS_VER_PATCH "0" CACHE INTERNAL "")
+	set(GITLABNSS_VER_META  "-dev" CACHE INTERNAL "")  # https://semver.org/#spec-item-10
+endif()
+
+# Does not include the meta component since this will be used in places where CMake expects the form X.X.X
+set(GITLABNSS_VERSION "${GITLABNSS_VER_MAJOR}.${GITLABNSS_VER_MINOR}.${GITLABNSS_VER_PATCH}")
+
+##########################################################################################
+# Project Setup
+##########################################################################################
 project(gitlabnss VERSION ${GITLABNSS_VERSION} LANGUAGES CXX)
 
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)

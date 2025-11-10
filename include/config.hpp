@@ -30,6 +30,7 @@ struct Config {
 	} gitlabapi;
 	struct NSS {
 		std::filesystem::path homesRoot;
+		bool createHomedirs;
 		uint16_t homePerms;
 		unsigned uidOffset;
 		unsigned gidOffset;
