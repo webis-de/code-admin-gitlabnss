@@ -77,7 +77,7 @@ case "$1" in
 
   restart)
         check_privsep_dir
-        log_daemon_msg "Restarting GitLab Daemon" "sshd" || true
+        log_daemon_msg "Restarting GitLab Daemon" "gitlabnssd" || true
         start-stop-daemon --stop --quiet --oknodo --retry 30 --pidfile /run/gitlabnssd.pid --exec /bin/gitlabnssd
         check_dev_null log_end_msg
         if start-stop-daemon --start --quiet --oknodo --chuid 0:0 --pidfile /run/gitlabnssd.pid --exec /bin/gitlabnssd; then

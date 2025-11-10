@@ -87,9 +87,11 @@ Error GitLab::fetchGroups(User& user) const {
 		return Error::ResponseFormatError;
 	user.groups.clear();
 	for (const auto& group : json.GetArray())
-		user.groups.emplace_back(
-				Group{.id = group["source_id"].Get<decltype(user.id)>(), .name = group["source_name"].GetString()}
-		);
+		// Filter for groups since a user can also be member of a project
+		if (group["source_type"].GetString() == std::string{"Namespace"})
+			user.groups.emplace_back(
+					Group{.id = group["source_id"].Get<decltype(user.id)>(), .name = group["source_name"].GetString()}
+			);
 	return Error::Ok;
 }
 
