@@ -52,14 +52,19 @@ class GitLabDaemonImpl final : public GitLabDaemon::Server {
 private:
 	Config config;
 	gitlab::GitLab gitlab;
-	cache::lru_cache<std::string, std::any> cache{20}; // Cache for the most recent 20 calls.
+	cache::lru_cache<std::string, gitlab::User> usercache{20};	 // Cache for the most recent 20 user calls.
+	cache::lru_cache<std::string, gitlab::Group> groupcache{40}; // Cache for the most recent 40 group calls.
 	std::map<gitlab::GroupID, gid_t> groupMap;
+
+	template <typename V>
+	cache::lru_cache<std::string, V>& getcache();
 
 	template <typename T>
 	bool findInCache(const std::string& cacheId, T& value) {
+		auto& cache = getcache<T>();
 		if (cache.exists(cacheId)) {
 			spdlog::info("Found in cache");
-			if (const T* val = std::any_cast<T>(&cache.get(cacheId))) {
+			if (const T* val = &cache.get(cacheId)) {
 				value = *val;
 				return true;
 			} else {
@@ -99,129 +104,156 @@ private:
 public:
 	GitLabDaemonImpl(Config config) : config(config), gitlab(this->config), groupMap(resolveGroupMap()) {}
 
-	virtual ::kj::Promise<void> getUserByID(GetUserByIDContext context) override {
-		spdlog::info("getUserByID({})", context.getParams().getId());
-		auto cacheId = std::format("getUserByID({})", context.getParams().getId());
-		gitlab::User user;
-		Error err = Error::Ok;
-		if (findInCache(cacheId, user) ||
-			((err = gitlab.fetchUserByID(context.getParams().getId(), user)) == Error::Ok &&
-			 (err = gitlab.fetchGroups(user)) == Error::Ok)) {
-			spdlog::debug("Found");
-			cache.put(cacheId, user);
-			auto output = context.getResults().initUser();
-			output.setId(user.id);
-			output.setName(user.name);
-			output.setUsername(user.username);
-			output.setState(user.state);
-			auto groups = output.initGroups(user.groups.size());
-			for (auto i = 0; i < user.groups.size(); ++i) {
-				if (decltype(groupMap)::iterator it; (it = groupMap.find(user.groups[i].id)) != groupMap.end()) {
-					// Group mapped to host group
-					groups[i].setId(it->second);
-					groups[i].setName("");
-					groups[i].setLocal(true);
-				} else {
-					// GitLab group
-					groups[i].setId(user.groups[i].id);
-					groups[i].setName(user.groups[i].name);
-					groups[i].setLocal(false);
-				}
-			}
-		}
-		context.getResults().setErrcode(static_cast<uint32_t>(err));
-		return kj::READY_NOW;
-	}
-	virtual ::kj::Promise<void> getUserByName(GetUserByNameContext context) override {
-		spdlog::info("getUserByName({})", context.getParams().getName().cStr());
-		auto cacheId = std::format("getUserByName({})", context.getParams().getName().cStr());
-		gitlab::User user;
-		Error err = Error::Ok;
-		if (findInCache(cacheId, user) ||
-			((err = gitlab.fetchUserByUsername(context.getParams().getName().cStr(), user)) == Error::Ok &&
-			 (err = gitlab.fetchGroups(user)) == Error::Ok)) {
-			spdlog::debug("Found");
-			cache.put(cacheId, user);
-			auto output = context.getResults().initUser();
-			output.setId(user.id);
-			output.setName(user.name);
-			output.setUsername(user.username);
-			output.setState(user.state);
-			auto groups = output.initGroups(user.groups.size());
-			for (auto i = 0; i < user.groups.size(); ++i) {
-				if (decltype(groupMap)::iterator it; (it = groupMap.find(user.groups[i].id)) != groupMap.end()) {
-					// Group mapped to host group
-					groups[i].setId(it->second);
-					groups[i].setName("");
-					groups[i].setLocal(true);
-				} else {
-					// GitLab group
-					groups[i].setId(user.groups[i].id);
-					groups[i].setName(user.groups[i].name);
-					groups[i].setLocal(false);
-				}
-			}
-		}
-		context.getResults().setErrcode(static_cast<uint32_t>(err));
-		return kj::READY_NOW;
-	}
-
-	virtual ::kj::Promise<void> getSSHKeys(GetSSHKeysContext context) {
-		spdlog::info("getSSHKeys({})", context.getParams().getId());
-		std::vector<std::string> keys;
-		Error err;
-		if ((err = gitlab.fetchAuthorizedKeys(context.getParams().getId(), keys)) == Error::Ok) {
-			spdlog::debug("Found");
-			// When std::ranges::to is finally implemented by GCC:
-			// std::string joined = keys | std::views::join | std::ranges::to<std::string>();
-			std::string joined;
-			for (auto&& key : keys)
-				joined += key + "\n";
-
-			context.getResults().setKeys(joined);
-		}
-		context.getResults().setErrcode(static_cast<uint32_t>(err));
-		return kj::READY_NOW;
-	}
-
-	virtual ::kj::Promise<void> getGroupByID(GetGroupByIDContext context) override {
-		spdlog::info("getGroupByID({})", context.getParams().getId());
-		auto cacheId = std::format("getGroupByID({})", context.getParams().getId());
-		gitlab::Group group;
-		Error err = Error::Ok;
-		if (findInCache(cacheId, group) ||
-			(err = gitlab.fetchGroupByID(context.getParams().getId(), group)) == Error::Ok) {
-			spdlog::debug("Found");
-			cache.put(cacheId, group);
-			auto output = context.getResults().initGroup();
-			output.setId(group.id);
-			output.setName(group.name);
-		}
-		context.getResults().setErrcode(static_cast<uint32_t>(err));
-		return kj::READY_NOW;
-	}
-	virtual ::kj::Promise<void> getGroupByName(GetGroupByNameContext context) override {
-		spdlog::info("getGroupByName({})", context.getParams().getName().cStr());
-		auto cacheId = std::format("getGroupByName({})", context.getParams().getName().cStr());
-		gitlab::Group group;
-		Error err = Error::Ok;
-		if (findInCache(cacheId, group) ||
-			(err = gitlab.fetchGroupByName(context.getParams().getName().cStr(), group)) == Error::Ok) {
-			spdlog::debug("Found");
-			cache.put(cacheId, group);
-			auto output = context.getResults().initGroup();
-			output.setId(group.id);
-			output.setName(group.name);
-		}
-		context.getResults().setErrcode(static_cast<uint32_t>(err));
-		return kj::READY_NOW;
-	}
+	virtual ::kj::Promise<void> getUserByID(GetUserByIDContext context) override;
+	virtual ::kj::Promise<void> getUserByName(GetUserByNameContext context) override;
+	virtual ::kj::Promise<void> getSSHKeys(GetSSHKeysContext context) override;
+	virtual ::kj::Promise<void> getGroupByID(GetGroupByIDContext context) override;
+	virtual ::kj::Promise<void> getGroupByName(GetGroupByNameContext context) override;
 };
+
+template <>
+constexpr cache::lru_cache<std::string, gitlab::User>& GitLabDaemonImpl::getcache<gitlab::User>() {
+	return usercache;
+}
+template <>
+constexpr cache::lru_cache<std::string, gitlab::Group>& GitLabDaemonImpl::getcache<gitlab::Group>() {
+	return groupcache;
+}
+
+::kj::Promise<void> GitLabDaemonImpl::getUserByID(GetUserByIDContext context) {
+	auto& cache = getcache<gitlab::User>();
+	spdlog::info("getUserByID({})", context.getParams().getId());
+	auto cacheId = std::format("getUserByID({})", context.getParams().getId());
+	gitlab::User user;
+	Error err = Error::Ok;
+	if (findInCache(cacheId, user) || ((err = gitlab.fetchUserByID(context.getParams().getId(), user)) == Error::Ok &&
+									   (err = gitlab.fetchGroups(user)) == Error::Ok)) {
+		spdlog::debug("Found");
+		cache.put(cacheId, user);
+		cache.put(std::format("getUserByName({})", user.name), user);
+		auto output = context.getResults().initUser();
+		output.setId(user.id);
+		output.setName(user.name);
+		output.setUsername(user.username);
+		output.setState(user.state);
+		auto groups = output.initGroups(user.groups.size());
+		for (auto i = 0; i < user.groups.size(); ++i) {
+			if (decltype(groupMap)::iterator it; (it = groupMap.find(user.groups[i].id)) != groupMap.end()) {
+				// Group mapped to host group
+				groups[i].setId(it->second);
+				groups[i].setName("");
+				groups[i].setLocal(true);
+			} else {
+				// GitLab group
+				groups[i].setId(user.groups[i].id);
+				groups[i].setName(user.groups[i].name);
+				groups[i].setLocal(false);
+			}
+		}
+	}
+	context.getResults().setErrcode(static_cast<uint32_t>(err));
+	return kj::READY_NOW;
+}
+::kj::Promise<void> GitLabDaemonImpl::getUserByName(GetUserByNameContext context) {
+	auto& cache = getcache<gitlab::User>();
+	spdlog::info("getUserByName({})", context.getParams().getName().cStr());
+	auto cacheId = std::format("getUserByName({})", context.getParams().getName().cStr());
+	gitlab::User user;
+	Error err = Error::Ok;
+	if (findInCache(cacheId, user) ||
+		((err = gitlab.fetchUserByUsername(context.getParams().getName().cStr(), user)) == Error::Ok &&
+		 (err = gitlab.fetchGroups(user)) == Error::Ok)) {
+		spdlog::debug("Found");
+		cache.put(cacheId, user);
+		cache.put(std::format("getUserByID({})", user.id), user);
+		auto output = context.getResults().initUser();
+		output.setId(user.id);
+		output.setName(user.name);
+		output.setUsername(user.username);
+		output.setState(user.state);
+		auto groups = output.initGroups(user.groups.size());
+		for (auto i = 0; i < user.groups.size(); ++i) {
+			if (decltype(groupMap)::iterator it; (it = groupMap.find(user.groups[i].id)) != groupMap.end()) {
+				// Group mapped to host group
+				groups[i].setId(it->second);
+				groups[i].setName("");
+				groups[i].setLocal(true);
+			} else {
+				// GitLab group
+				groups[i].setId(user.groups[i].id);
+				groups[i].setName(user.groups[i].name);
+				groups[i].setLocal(false);
+			}
+		}
+	}
+	context.getResults().setErrcode(static_cast<uint32_t>(err));
+	return kj::READY_NOW;
+}
+
+::kj::Promise<void> GitLabDaemonImpl::getSSHKeys(GetSSHKeysContext context) {
+	spdlog::info("getSSHKeys({})", context.getParams().getId());
+	std::vector<std::string> keys;
+	Error err;
+	if ((err = gitlab.fetchAuthorizedKeys(context.getParams().getId(), keys)) == Error::Ok) {
+		spdlog::debug("Found");
+		// When std::ranges::to is finally implemented by GCC:
+		// std::string joined = keys | std::views::join | std::ranges::to<std::string>();
+		std::string joined;
+		for (auto&& key : keys)
+			joined += key + "\n";
+
+		context.getResults().setKeys(joined);
+	}
+	context.getResults().setErrcode(static_cast<uint32_t>(err));
+	return kj::READY_NOW;
+}
+
+::kj::Promise<void> GitLabDaemonImpl::getGroupByID(GetGroupByIDContext context) {
+	auto& cache = getcache<gitlab::Group>();
+	spdlog::info("getGroupByID({})", context.getParams().getId());
+	auto cacheId = std::format("getGroupByID({})", context.getParams().getId());
+	gitlab::Group group;
+	Error err = Error::Ok;
+	if (findInCache(cacheId, group) || (err = gitlab.fetchGroupByID(context.getParams().getId(), group)) == Error::Ok) {
+		spdlog::debug("Found");
+		cache.put(std::format("getGroupByName({})", group.name), group);
+		cache.put(cacheId, group);
+		auto output = context.getResults().initGroup();
+		output.setId(group.id);
+		output.setName(group.name);
+	}
+	context.getResults().setErrcode(static_cast<uint32_t>(err));
+	return kj::READY_NOW;
+}
+::kj::Promise<void> GitLabDaemonImpl::getGroupByName(GetGroupByNameContext context) {
+	auto& cache = getcache<gitlab::Group>();
+	spdlog::info("getGroupByName({})", context.getParams().getName().cStr());
+	auto cacheId = std::format("getGroupByName({})", context.getParams().getName().cStr());
+	gitlab::Group group;
+	Error err = Error::Ok;
+	if (findInCache(cacheId, group) ||
+		(err = gitlab.fetchGroupByName(context.getParams().getName().cStr(), group)) == Error::Ok) {
+		spdlog::debug("Found");
+		cache.put(cacheId, group);
+		cache.put(std::format("getGroupByID({})", group.id), group);
+		auto output = context.getResults().initGroup();
+		output.setId(group.id);
+		output.setName(group.name);
+	}
+	context.getResults().setErrcode(static_cast<uint32_t>(err));
+	return kj::READY_NOW;
+}
 
 static auto [promise, fulfiller] = kj::newPromiseAndFulfiller<void>();
 int main(int argc, char* argv[]) {
-	// Daemonize
-	daemon(0, 0);
+	bool daemonize = true;
+	if (argc == 2 && argv[1] == std::string_view{"--foreground"}) {
+		daemonize = false;
+	} else if (argc != 1) {
+		return -1; // Invalid CLI Args
+	}
+	if (daemonize)
+		daemon(0, 0);
 	{
 		std::ofstream fstream((std::filesystem::absolute("run") / "gitlabnssd.pid").c_str());
 		fstream << getpid() << std::endl;

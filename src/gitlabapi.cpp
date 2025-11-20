@@ -97,7 +97,7 @@ Error GitLab::fetchGroups(User& user) const {
 
 Error GitLab::fetchGroupByName(const std::string& groupname, Group& group) const {
 	/**  \todo should not hurt to apply url-encoding of the groupname **/
-	auto fetched = fetch(config, std::format("{}/groups?search={}", config.gitlabapi.baseUrl, groupname));
+	auto fetched = fetch(config, std::format("{}/groups?search={}&active=true", config.gitlabapi.baseUrl, groupname));
 	if (!fetched.has_value())
 		return fetched.error();
 	auto& json = fetched.value();
@@ -115,7 +115,7 @@ Error GitLab::fetchGroupByName(const std::string& groupname, Group& group) const
 }
 
 Error GitLab::fetchGroupByID(GroupID id, Group& group) const {
-	auto fetched = fetch(config, std::format("{}/groups/{}", config.gitlabapi.baseUrl, id));
+	auto fetched = fetch(config, std::format("{}/groups/{}?with_projects=false", config.gitlabapi.baseUrl, id));
 	if (!fetched.has_value())
 		return fetched.error();
 	auto& json = fetched.value();

@@ -70,9 +70,13 @@ void populatePasswd(passwd& pwd, const User::Reader& user, std::span<char> buffe
 	pwd.pw_dir = buffer.data() + stream.tellp();
 	std::string homedir = config.nss.homesRoot / user.getUsername().cStr();
 	if (config.nss.createHomedirs && !fs::exists(config.nss.homesRoot / user.getUsername().cStr())) {
-		fs::create_directories(config.nss.homesRoot / user.getUsername().cStr());
-		chown(homedir.c_str(), pwd.pw_uid, pwd.pw_gid);
-		chmod(homedir.c_str(), config.nss.homePerms);
+		try {
+			fs::create_directories(config.nss.homesRoot / user.getUsername().cStr());
+			chown(homedir.c_str(), pwd.pw_uid, pwd.pw_gid);
+			chmod(homedir.c_str(), config.nss.homePerms);
+		} catch (fs::filesystem_error& e) {
+			/** Ignore permission denied **/
+		}
 	}
 	stream << homedir << '\0';
 }
