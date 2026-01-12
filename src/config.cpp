@@ -59,6 +59,8 @@ Config Config::fromFile(const std::filesystem::path& file) noexcept {
 						.groupPrefix = table["nss"]["group_prefix"].value_or(Config::DefaultGroupPrefix),
 						.shell = table["nss"]["shell"].value_or(Config::DefaultShell),
 						.primaryGroup = table["nss"]["primary_group"].value<std::string>(),
+						.userCachesize = table["nss"]["user_cachesize"].value_or(Config::DefaultUserCachesize),
+						.groupCachesize = table["nss"]["group_cachesize"].value_or(Config::DefaultGroupCachesize),
 						.groupMapping = tomap(table["nss"]["group_mapping"].as_table())}
 		};
 	}

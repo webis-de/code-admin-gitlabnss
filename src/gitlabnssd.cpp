@@ -57,8 +57,8 @@ private:
 	Config config;
 	gitlab::GitLab gitlab;
 
-	Cache<std::string, gitlab::User> usercache{100};   // Cache for the most recent 100 user calls.
-	Cache<std::string, gitlab::Group> groupcache{100}; // Cache for the most recent 100 group calls.
+	Cache<std::string, gitlab::User> usercache;
+	Cache<std::string, gitlab::Group> groupcache;
 	std::map<gitlab::GroupID, gid_t> groupMap;
 
 	template <typename V>
@@ -109,7 +109,9 @@ private:
 	void populateUserDTO(User::Builder& dto, gitlab::User user) const;
 
 public:
-	GitLabDaemonImpl(Config config) : config(config), gitlab(this->config), groupMap(resolveGroupMap()) {}
+	GitLabDaemonImpl(Config config)
+			: config(config), gitlab(this->config), usercache{this->config.nss.userCachesize},
+			  groupcache{this->config.nss.groupCachesize}, groupMap(resolveGroupMap()) {}
 
 	virtual ::kj::Promise<void> getUserByID(GetUserByIDContext context) override;
 	virtual ::kj::Promise<void> getUserByName(GetUserByNameContext context) override;

@@ -19,6 +19,8 @@ struct Config {
 	static constexpr unsigned DefaultGIDOffset = 0;
 	static constexpr const char DefaultShell[] = "/usr/bin/bash";
 	static constexpr const char DefaultGroupPrefix[] = "";
+	static constexpr unsigned DefaultUserCachesize = 500;
+	static constexpr unsigned DefaultGroupCachesize = 200;
 
 	struct {
 		std::filesystem::path socketPath;
@@ -38,6 +40,8 @@ struct Config {
 		std::string groupPrefix;
 		std::string shell;
 		std::optional<std::string> primaryGroup;
+		unsigned userCachesize;
+		unsigned groupCachesize;
 		std::map<std::string, std::string> groupMapping;
 	} nss;
 
