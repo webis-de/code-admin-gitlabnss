@@ -6,7 +6,7 @@
 #include <config.hpp>
 #include <gitlabapi.hpp>
 
-#include <lrucache.hpp>
+#include <stlcache/stlcache.hpp>
 
 #include <spdlog/sinks/rotating_file_sink.h>
 #include <spdlog/sinks/stdout_color_sinks.h>
@@ -48,23 +48,28 @@ static void initLogger() {
 	spdlog::set_default_logger(logger);
 }
 
+// Aging set to 30*60 seconds (aka .5 h); that is, an entry that was used n times will be deleted after n/2 hours
+template <typename K, typename V>
+using Cache = stlcache::cache<K, V, stlcache::policy_lfuaging<60 * 60>>;
+
 class GitLabDaemonImpl final : public GitLabDaemon::Server {
 private:
 	Config config;
 	gitlab::GitLab gitlab;
-	cache::lru_cache<std::string, gitlab::User> usercache{20};	 // Cache for the most recent 20 user calls.
-	cache::lru_cache<std::string, gitlab::Group> groupcache{40}; // Cache for the most recent 40 group calls.
+
+	Cache<std::string, gitlab::User> usercache{100};   // Cache for the most recent 100 user calls.
+	Cache<std::string, gitlab::Group> groupcache{100}; // Cache for the most recent 100 group calls.
 	std::map<gitlab::GroupID, gid_t> groupMap;
 
 	template <typename V>
-	cache::lru_cache<std::string, V>& getcache();
+	Cache<std::string, V>& getcache();
 
 	template <typename T>
 	bool findInCache(const std::string& cacheId, T& value) {
 		auto& cache = getcache<T>();
-		if (cache.exists(cacheId)) {
+		if (cache.check(cacheId)) {
 			spdlog::info("Found in cache");
-			if (const T* val = &cache.get(cacheId)) {
+			if (const T* val = &cache.fetch(cacheId)) {
 				value = *val;
 				return true;
 			} else {
@@ -114,11 +119,11 @@ public:
 };
 
 template <>
-constexpr cache::lru_cache<std::string, gitlab::User>& GitLabDaemonImpl::getcache<gitlab::User>() {
+constexpr Cache<std::string, gitlab::User>& GitLabDaemonImpl::getcache<gitlab::User>() {
 	return usercache;
 }
 template <>
-constexpr cache::lru_cache<std::string, gitlab::Group>& GitLabDaemonImpl::getcache<gitlab::Group>() {
+constexpr Cache<std::string, gitlab::Group>& GitLabDaemonImpl::getcache<gitlab::Group>() {
 	return groupcache;
 }
 
@@ -159,8 +164,8 @@ void GitLabDaemonImpl::populateUserDTO(User::Builder& dto, gitlab::User user) co
 	if (findInCache(cacheId, user) || ((err = gitlab.fetchUserByID(context.getParams().getId(), user)) == Error::Ok &&
 									   (err = gitlab.fetchGroups(user)) == Error::Ok)) {
 		spdlog::debug("Found");
-		cache.put(cacheId, user);
-		cache.put(std::format("getUserByName({})", user.name), user);
+		cache.insert_or_assign(cacheId, user);
+		cache.insert_or_assign(std::format("getUserByName({})", user.name), user);
 		auto output = context.getResults().initUser();
 		populateUserDTO(output, user);
 	}
@@ -177,8 +182,8 @@ void GitLabDaemonImpl::populateUserDTO(User::Builder& dto, gitlab::User user) co
 		((err = gitlab.fetchUserByUsername(context.getParams().getName().cStr(), user)) == Error::Ok &&
 		 (err = gitlab.fetchGroups(user)) == Error::Ok)) {
 		spdlog::debug("Found");
-		cache.put(cacheId, user);
-		cache.put(std::format("getUserByID({})", user.id), user);
+		cache.insert_or_assign(cacheId, user);
+		cache.insert_or_assign(std::format("getUserByID({})", user.id), user);
 		auto output = context.getResults().initUser();
 		populateUserDTO(output, user);
 	}
@@ -212,8 +217,8 @@ void GitLabDaemonImpl::populateUserDTO(User::Builder& dto, gitlab::User user) co
 	Error err = Error::Ok;
 	if (findInCache(cacheId, group) || (err = gitlab.fetchGroupByID(context.getParams().getId(), group)) == Error::Ok) {
 		spdlog::debug("Found");
-		cache.put(std::format("getGroupByName({})", group.name), group);
-		cache.put(cacheId, group);
+		cache.insert_or_assign(std::format("getGroupByName({})", group.name), group);
+		cache.insert_or_assign(cacheId, group);
 		auto output = context.getResults().initGroup();
 		output.setId(group.id);
 		output.setName(group.name);
@@ -230,8 +235,8 @@ void GitLabDaemonImpl::populateUserDTO(User::Builder& dto, gitlab::User user) co
 	if (findInCache(cacheId, group) ||
 		(err = gitlab.fetchGroupByName(context.getParams().getName().cStr(), group)) == Error::Ok) {
 		spdlog::debug("Found");
-		cache.put(cacheId, group);
-		cache.put(std::format("getGroupByID({})", group.id), group);
+		cache.insert_or_assign(cacheId, group);
+		cache.insert_or_assign(std::format("getGroupByID({})", group.id), group);
 		auto output = context.getResults().initGroup();
 		output.setId(group.id);
 		output.setName(group.name);
