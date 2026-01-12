@@ -58,6 +58,7 @@ Config Config::fromFile(const std::filesystem::path& file) noexcept {
 						.gidOffset = table["nss"]["gid_offset"].value_or(Config::DefaultGIDOffset),
 						.groupPrefix = table["nss"]["group_prefix"].value_or(Config::DefaultGroupPrefix),
 						.shell = table["nss"]["shell"].value_or(Config::DefaultShell),
+						.primaryGroup = table["nss"]["primary_group"].value<std::string>(),
 						.groupMapping = tomap(table["nss"]["group_mapping"].as_table())}
 		};
 	}

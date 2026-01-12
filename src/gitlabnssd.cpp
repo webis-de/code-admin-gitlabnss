@@ -101,6 +101,8 @@ private:
 		return ret;
 	}
 
+	void GitLabDaemonImpl::populateUserDTO(User::Builder& dto, gitlab::User user) const;
+
 public:
 	GitLabDaemonImpl(Config config) : config(config), gitlab(this->config), groupMap(resolveGroupMap()) {}
 
@@ -120,6 +122,34 @@ constexpr cache::lru_cache<std::string, gitlab::Group>& GitLabDaemonImpl::getcac
 	return groupcache;
 }
 
+void GitLabDaemonImpl::populateUserDTO(User::Builder& dto, gitlab::User user) const {
+	dto.setId(user.id);
+	dto.setName(user.name);
+	dto.setUsername(user.username);
+	dto.setState(user.state);
+	// Move primary group of the user to the front
+	auto it = std::find_if(std::begin(user.groups), std::end(user.groups), [this](const auto& group) {
+		return group.name == config.nss.primaryGroup;
+	});
+	if (it != std::end(user.groups))
+		std::swap(*it, user.groups[0]);
+	//
+	auto groups = dto.initGroups(user.groups.size());
+	for (auto i = 0; i < user.groups.size(); ++i) {
+		if (decltype(groupMap)::const_iterator it; (it = groupMap.find(user.groups[i].id)) != groupMap.end()) {
+			// Group mapped to host group
+			groups[i].setId(it->second);
+			groups[i].setName("");
+			groups[i].setLocal(true);
+		} else {
+			// GitLab group
+			groups[i].setId(user.groups[i].id);
+			groups[i].setName(user.groups[i].name);
+			groups[i].setLocal(false);
+		}
+	}
+}
+
 ::kj::Promise<void> GitLabDaemonImpl::getUserByID(GetUserByIDContext context) {
 	auto& cache = getcache<gitlab::User>();
 	spdlog::info("getUserByID({})", context.getParams().getId());
@@ -132,24 +162,7 @@ constexpr cache::lru_cache<std::string, gitlab::Group>& GitLabDaemonImpl::getcac
 		cache.put(cacheId, user);
 		cache.put(std::format("getUserByName({})", user.name), user);
 		auto output = context.getResults().initUser();
-		output.setId(user.id);
-		output.setName(user.name);
-		output.setUsername(user.username);
-		output.setState(user.state);
-		auto groups = output.initGroups(user.groups.size());
-		for (auto i = 0; i < user.groups.size(); ++i) {
-			if (decltype(groupMap)::iterator it; (it = groupMap.find(user.groups[i].id)) != groupMap.end()) {
-				// Group mapped to host group
-				groups[i].setId(it->second);
-				groups[i].setName("");
-				groups[i].setLocal(true);
-			} else {
-				// GitLab group
-				groups[i].setId(user.groups[i].id);
-				groups[i].setName(user.groups[i].name);
-				groups[i].setLocal(false);
-			}
-		}
+		populateUserDTO(output, user);
 	}
 	context.getResults().setErrcode(static_cast<uint32_t>(err));
 	return kj::READY_NOW;
@@ -167,24 +180,7 @@ constexpr cache::lru_cache<std::string, gitlab::Group>& GitLabDaemonImpl::getcac
 		cache.put(cacheId, user);
 		cache.put(std::format("getUserByID({})", user.id), user);
 		auto output = context.getResults().initUser();
-		output.setId(user.id);
-		output.setName(user.name);
-		output.setUsername(user.username);
-		output.setState(user.state);
-		auto groups = output.initGroups(user.groups.size());
-		for (auto i = 0; i < user.groups.size(); ++i) {
-			if (decltype(groupMap)::iterator it; (it = groupMap.find(user.groups[i].id)) != groupMap.end()) {
-				// Group mapped to host group
-				groups[i].setId(it->second);
-				groups[i].setName("");
-				groups[i].setLocal(true);
-			} else {
-				// GitLab group
-				groups[i].setId(user.groups[i].id);
-				groups[i].setName(user.groups[i].name);
-				groups[i].setLocal(false);
-			}
-		}
+		populateUserDTO(output, user);
 	}
 	context.getResults().setErrcode(static_cast<uint32_t>(err));
 	return kj::READY_NOW;

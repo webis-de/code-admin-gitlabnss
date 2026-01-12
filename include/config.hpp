@@ -3,6 +3,7 @@
 
 #include <filesystem>
 #include <map>
+#include <optional>
 #include <string>
 
 struct Config {
@@ -36,6 +37,7 @@ struct Config {
 		unsigned gidOffset;
 		std::string groupPrefix;
 		std::string shell;
+		std::optional<std::string> primaryGroup;
 		std::map<std::string, std::string> groupMapping;
 	} nss;
 
