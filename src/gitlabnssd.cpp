@@ -101,7 +101,7 @@ private:
 		return ret;
 	}
 
-	void GitLabDaemonImpl::populateUserDTO(User::Builder& dto, gitlab::User user) const;
+	void populateUserDTO(User::Builder& dto, gitlab::User user) const;
 
 public:
 	GitLabDaemonImpl(Config config) : config(config), gitlab(this->config), groupMap(resolveGroupMap()) {}
