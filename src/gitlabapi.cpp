@@ -79,7 +79,7 @@ Error GitLab::fetchAuthorizedKeys(UserID id, std::vector<std::string>& keys) con
 }
 
 Error GitLab::fetchGroups(User& user) const {
-	auto fetched = fetch(config, std::format("{}/users/{}/memberships", config.gitlabapi.baseUrl, user.id));
+	auto fetched = fetch(config, std::format("{}/users/{}/memberships?per_page=100", config.gitlabapi.baseUrl, user.id));
 	if (!fetched.has_value())
 		return fetched.error();
 	auto& json = fetched.value();
