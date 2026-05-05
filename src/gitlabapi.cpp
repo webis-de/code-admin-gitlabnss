@@ -73,13 +73,14 @@ Error GitLab::fetchAuthorizedKeys(UserID id, std::vector<std::string>& keys) con
 		return Error::ResponseFormatError;
 	for (const auto& key : json.GetArray())
 		/** \todo adhere to expires_at **/
-		if (key["usage_type"] == "auth_and_signing")
+		if (key["usage_type"] == "auth" || key["usage_type"] == "auth_and_signing")
 			keys.emplace_back(key["key"].GetString());
 	return Error::Ok;
 }
 
 Error GitLab::fetchGroups(User& user) const {
-	auto fetched = fetch(config, std::format("{}/users/{}/memberships?per_page=100", config.gitlabapi.baseUrl, user.id));
+	auto fetched =
+			fetch(config, std::format("{}/users/{}/memberships?per_page=999", config.gitlabapi.baseUrl, user.id));
 	if (!fetched.has_value())
 		return fetched.error();
 	auto& json = fetched.value();
