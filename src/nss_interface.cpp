@@ -12,9 +12,9 @@
 #include <shadow.h>
 #include <sys/stat.h>
 
+#include <compat/spanstream.hpp>
 #include <filesystem>
 #include <span>
-#include <spanstream>
 
 namespace fs = std::filesystem;
 
@@ -48,7 +48,7 @@ static auto getGroupId(const Group::Reader& group) {
 }
 
 void populatePasswd(passwd& pwd, const User::Reader& user, std::span<char> buffer) {
-	auto stream = std::ospanstream(buffer);
+	auto stream = std23::ospanstream(buffer);
 	// Username
 	pwd.pw_name = buffer.data() + stream.tellp();
 	stream << user.getUsername().cStr() << '\0';
@@ -153,7 +153,7 @@ nss_status _nss_gitlab_getpwnam_r(const char* name, passwd* pwd, char* buf, size
 /* GROUPS                                                                                                             */
 /**********************************************************************************************************************/
 void populateGroup(group& group, const Group::Reader& obj, std::span<char> buffer) {
-	auto stream = std::ospanstream(buffer);
+	auto stream = std23::ospanstream(buffer);
 	// Username
 	group.gr_name = buffer.data() + stream.tellp();
 	stream << (obj.getLocal() ? "" : config.nss.groupPrefix) << obj.getName().cStr() << '\0';

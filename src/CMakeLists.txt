@@ -57,19 +57,38 @@ add_executable(authorized_keys
 set_target_properties(authorized_keys PROPERTIES
     OUTPUT_NAME fetchgitlabkeys
 )
+target_include_directories(authorized_keys PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/../include)
+target_compile_features(authorized_keys PRIVATE cxx_std_23)
 target_link_libraries(authorized_keys daemonproto)
-target_link_libraries(authorized_keys nss_gitlab)
 
 ########################################################################################################################
 # DEPENDENCIES                                                                                                         #
 ########################################################################################################################
 
-## spdlog
+## fmt — shared by compat/format.hpp and spdlog
+FetchContent_Declare(fmt GIT_REPOSITORY https://github.com/fmtlib/fmt.git GIT_TAG 10.2.1 EXCLUDE_FROM_ALL)
+FetchContent_MakeAvailable(fmt)
+
+## spdlog — use the same fmt fetched above (spdlog checks "if(NOT TARGET fmt::fmt)" before find_package)
+set(SPDLOG_FMT_EXTERNAL ON)
 set(SPDLOG_BUILD_SHARED OFF)
 FetchContent_Declare(spdlog GIT_REPOSITORY https://github.com/gabime/spdlog.git GIT_TAG v1.15.0 EXCLUDE_FROM_ALL)
 FetchContent_MakeAvailable(spdlog)
-target_link_libraries(nss_gitlab PUBLIC spdlog::spdlog)
-target_link_libraries(gitlabnssd spdlog::spdlog)
+target_link_libraries(nss_gitlab PUBLIC spdlog::spdlog fmt::fmt)
+target_link_libraries(gitlabnssd spdlog::spdlog fmt::fmt)
+target_link_libraries(authorized_keys fmt::fmt)
+
+## tl::expected — compat/expected.hpp fallback
+FetchContent_Declare(tl_expected GIT_REPOSITORY https://github.com/TartanLlama/expected.git GIT_TAG v1.1.0 EXCLUDE_FROM_ALL)
+FetchContent_MakeAvailable(tl_expected)
+target_link_libraries(nss_gitlab PUBLIC tl::expected)
+target_link_libraries(gitlabnssd tl::expected)
+
+## tl::optional — compat/optional.hpp fallback (monadic operations: and_then, transform, or_else)
+FetchContent_Declare(tl_optional GIT_REPOSITORY https://github.com/TartanLlama/optional.git GIT_TAG v1.1.0 EXCLUDE_FROM_ALL)
+FetchContent_MakeAvailable(tl_optional)
+target_link_libraries(nss_gitlab PUBLIC tl::optional)
+target_link_libraries(gitlabnssd tl::optional)
 
 # libcpr
 FetchContent_Declare(cpr GIT_REPOSITORY https://github.com/libcpr/cpr.git GIT_TAG 1.10.5 EXCLUDE_FROM_ALL)

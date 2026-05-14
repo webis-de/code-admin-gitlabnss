@@ -1,0 +1,1 @@
+This folder contains fallback implementations of standard library features to be used for backwards compatibility with older compilers.

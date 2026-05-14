@@ -3,6 +3,7 @@
  * @brief The gitlabnss daemon executable
  */
 
+#include <compat/format.hpp>
 #include <config.hpp>
 #include <gitlabapi.hpp>
 
@@ -66,7 +67,7 @@ private:
 
 	template <typename T>
 	bool findInCache(const std::string& cacheId, T& value) {
-		auto& cache = getcache<T>();
+		auto& cache = this->template getcache<T>();
 		if (cache.check(cacheId)) {
 			spdlog::info("Found in cache");
 			if (const T* val = &cache.fetch(cacheId)) {
@@ -121,11 +122,11 @@ public:
 };
 
 template <>
-constexpr Cache<std::string, gitlab::User>& GitLabDaemonImpl::getcache<gitlab::User>() {
+Cache<std::string, gitlab::User>& GitLabDaemonImpl::getcache<gitlab::User>() {
 	return usercache;
 }
 template <>
-constexpr Cache<std::string, gitlab::Group>& GitLabDaemonImpl::getcache<gitlab::Group>() {
+Cache<std::string, gitlab::Group>& GitLabDaemonImpl::getcache<gitlab::Group>() {
 	return groupcache;
 }
 
@@ -160,14 +161,14 @@ void GitLabDaemonImpl::populateUserDTO(User::Builder& dto, gitlab::User user) co
 ::kj::Promise<void> GitLabDaemonImpl::getUserByID(GetUserByIDContext context) {
 	auto& cache = getcache<gitlab::User>();
 	spdlog::info("getUserByID({})", context.getParams().getId());
-	auto cacheId = std::format("getUserByID({})", context.getParams().getId());
+	auto cacheId = std20::format("getUserByID({})", context.getParams().getId());
 	gitlab::User user;
 	Error err = Error::Ok;
 	if (findInCache(cacheId, user) || ((err = gitlab.fetchUserByID(context.getParams().getId(), user)) == Error::Ok &&
 									   (err = gitlab.fetchGroups(user)) == Error::Ok)) {
 		spdlog::debug("Found");
 		cache.insert_or_assign(cacheId, user);
-		cache.insert_or_assign(std::format("getUserByName({})", user.name), user);
+		cache.insert_or_assign(std20::format("getUserByName({})", user.name), user);
 		auto output = context.getResults().initUser();
 		populateUserDTO(output, user);
 	}
@@ -177,7 +178,7 @@ void GitLabDaemonImpl::populateUserDTO(User::Builder& dto, gitlab::User user) co
 ::kj::Promise<void> GitLabDaemonImpl::getUserByName(GetUserByNameContext context) {
 	auto& cache = getcache<gitlab::User>();
 	spdlog::info("getUserByName({})", context.getParams().getName().cStr());
-	auto cacheId = std::format("getUserByName({})", context.getParams().getName().cStr());
+	auto cacheId = std20::format("getUserByName({})", context.getParams().getName().cStr());
 	gitlab::User user;
 	Error err = Error::Ok;
 	if (findInCache(cacheId, user) ||
@@ -185,7 +186,7 @@ void GitLabDaemonImpl::populateUserDTO(User::Builder& dto, gitlab::User user) co
 		 (err = gitlab.fetchGroups(user)) == Error::Ok)) {
 		spdlog::debug("Found");
 		cache.insert_or_assign(cacheId, user);
-		cache.insert_or_assign(std::format("getUserByID({})", user.id), user);
+		cache.insert_or_assign(std20::format("getUserByID({})", user.id), user);
 		auto output = context.getResults().initUser();
 		populateUserDTO(output, user);
 	}
@@ -214,12 +215,12 @@ void GitLabDaemonImpl::populateUserDTO(User::Builder& dto, gitlab::User user) co
 ::kj::Promise<void> GitLabDaemonImpl::getGroupByID(GetGroupByIDContext context) {
 	auto& cache = getcache<gitlab::Group>();
 	spdlog::info("getGroupByID({})", context.getParams().getId());
-	auto cacheId = std::format("getGroupByID({})", context.getParams().getId());
+	auto cacheId = std20::format("getGroupByID({})", context.getParams().getId());
 	gitlab::Group group;
 	Error err = Error::Ok;
 	if (findInCache(cacheId, group) || (err = gitlab.fetchGroupByID(context.getParams().getId(), group)) == Error::Ok) {
 		spdlog::debug("Found");
-		cache.insert_or_assign(std::format("getGroupByName({})", group.name), group);
+		cache.insert_or_assign(std20::format("getGroupByName({})", group.name), group);
 		cache.insert_or_assign(cacheId, group);
 		auto output = context.getResults().initGroup();
 		output.setId(group.id);
@@ -231,14 +232,14 @@ void GitLabDaemonImpl::populateUserDTO(User::Builder& dto, gitlab::User user) co
 ::kj::Promise<void> GitLabDaemonImpl::getGroupByName(GetGroupByNameContext context) {
 	auto& cache = getcache<gitlab::Group>();
 	spdlog::info("getGroupByName({})", context.getParams().getName().cStr());
-	auto cacheId = std::format("getGroupByName({})", context.getParams().getName().cStr());
+	auto cacheId = std20::format("getGroupByName({})", context.getParams().getName().cStr());
 	gitlab::Group group;
 	Error err = Error::Ok;
 	if (findInCache(cacheId, group) ||
 		(err = gitlab.fetchGroupByName(context.getParams().getName().cStr(), group)) == Error::Ok) {
 		spdlog::debug("Found");
 		cache.insert_or_assign(cacheId, group);
-		cache.insert_or_assign(std::format("getGroupByID({})", group.id), group);
+		cache.insert_or_assign(std20::format("getGroupByID({})", group.id), group);
 		auto output = context.getResults().initGroup();
 		output.setId(group.id);
 		output.setName(group.name);
@@ -272,7 +273,7 @@ int main(int argc, char* argv[]) {
 	spdlog::info("Success! Will use {} to communicate with GitLab", config.gitlabapi.baseUrl);
 	spdlog::info("Binding socket to {}", socketPath.string());
 	capnp::Capability::Client heap{kj::heap<GitLabDaemonImpl>(config)};
-	auto addr = std::format("unix:{}", socketPath.string());
+	auto addr = std20::format("unix:{}", socketPath.string());
 	kj::StringPtr bind = addr.c_str();
 	capnp::EzRpcServer server{heap, bind};
 	auto& waitScope = server.getWaitScope();

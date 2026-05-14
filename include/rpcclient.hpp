@@ -1,19 +1,20 @@
 #ifndef RPCCLIENT_HPP
 #define RPCCLIENT_HPP
 
+#include "compat/format.hpp"
+
 #include <capnp/rpc-twoparty.h>
 #include <kj/async-io.h>
 #include <protocol/messages.capnp.h>
 
 #include <filesystem>
-#include <format>
 #include <memory>
 
 static std::shared_ptr<GitLabDaemon::Client> initClient(kj::AsyncIoContext& io) {
 	try {
 		auto& waitScope = io.waitScope;
 		auto socketPath = std::filesystem::current_path().root_path() / "var" / "run" / "gitlabnss.sock";
-		auto addrstr = std::format("unix:{}", socketPath.string());
+		auto addrstr = std20::format("unix:{}", socketPath.string());
 		kj::Network& network = io.provider->getNetwork();
 		kj::Own<kj::NetworkAddress> addr = network.parseAddress(kj::StringPtr{addrstr.c_str()}).wait(waitScope);
 		struct Anon {

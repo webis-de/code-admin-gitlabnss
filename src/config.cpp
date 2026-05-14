@@ -1,3 +1,4 @@
+#include <compat/optional.hpp>
 #include <config.hpp>
 
 #include <toml++/toml.hpp>
@@ -7,11 +8,11 @@
 
 using namespace std::string_literals;
 
-static std::optional<std::string> tryReadSecret(const std::filesystem::path& path) {
+static std23::optional<std::string> tryReadSecret(const std::filesystem::path& path) {
 	std::ifstream file(path);
 	if (std::string line; std::getline(file, line))
 		return line;
-	return std::nullopt;
+	return std23::nullopt;
 }
 
 static std::map<std::string, std::string> tomap(const toml::table* table) {
@@ -20,10 +21,8 @@ static std::map<std::string, std::string> tomap(const toml::table* table) {
 	}
 	std::map<std::string, std::string> ret;
 	for (const auto& [key, value] : *table)
-		value.value<std::string>().and_then([&](const auto& val) {
-			ret[std::string{key.str()}] = val;
-			return std::optional{val};
-		});
+		if (auto val = value.value<std::string>())
+			ret[std::string{key.str()}] = *val;
 	return ret;
 }
 
@@ -44,9 +43,8 @@ Config Config::fromFile(const std::filesystem::path& file) noexcept {
 						 .socketOwner = table["general"]["socket_owner"].value_or(Config::DefaultSocketOwner)},
 				.gitlabapi =
 						{.baseUrl = table["gitlabapi"]["base_url"].value_or(""s),
-						 .apikey = table["gitlabapi"]["secret"]
-										   .value<std::string>()
-										   .transform([file](const std::filesystem::path& path) {
+						 .apikey = std23::lift(table["gitlabapi"]["secret"].value<std::string>())
+										   .transform([&file](const std::filesystem::path& path) {
 											   return file.parent_path() / path;
 										   })
 										   .and_then(tryReadSecret)

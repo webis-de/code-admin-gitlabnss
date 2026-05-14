@@ -1,10 +1,10 @@
 #include <gitlabapi.hpp>
 
+#include <compat/expected.hpp>
+#include <compat/format.hpp>
+
 #include <cpr/cpr.h>
 #include <rapidjson/document.h>
-
-#include <expected>
-#include <format>
 
 using gitlab::GitLab;
 using gitlab::Group;
@@ -12,20 +12,20 @@ using gitlab::GroupID;
 using gitlab::User;
 using gitlab::UserID;
 
-static std::expected<rapidjson::Document, Error> fetch(const Config& config, std::string url) noexcept {
+static std23::expected<rapidjson::Document, Error> fetch(const Config& config, std::string url) noexcept {
 	auto resp = cpr::Get(cpr::Url{url}, cpr::Bearer{config.gitlabapi.apikey});
 	if (resp.status_code == 404)
-		return std::unexpected(Error::NotFound);
+		return std23::unexpected(Error::NotFound);
 	else if (resp.status_code == 401)
-		return std::unexpected(Error::AuthenticationError);
+		return std23::unexpected(Error::AuthenticationError);
 	else if (resp.status_code >= 400)
-		return std::unexpected(Error::GenericError);
+		return std23::unexpected(Error::GenericError);
 	else if (resp.status_code >= 500)
-		return std::unexpected(Error::ServerError);
+		return std23::unexpected(Error::ServerError);
 	rapidjson::Document json;
 	json.Parse(resp.text.c_str());
 	if (json.HasParseError())
-		return std::unexpected(Error::ResponseFormatError);
+		return std23::unexpected(Error::ResponseFormatError);
 	return json;
 }
 
@@ -33,7 +33,7 @@ GitLab::GitLab(const Config& config) noexcept : config(config) {}
 
 Error GitLab::fetchUserByUsername(std::string username, User& user) const {
 	/**  \todo should not hurt to apply url-encoding of the username **/
-	auto fetched = fetch(config, std::format("{}/users?username={}", config.gitlabapi.baseUrl, username));
+	auto fetched = fetch(config, std20::format("{}/users?username={}", config.gitlabapi.baseUrl, username));
 	if (!fetched.has_value())
 		return fetched.error();
 	auto& json = fetched.value();
@@ -50,7 +50,7 @@ Error GitLab::fetchUserByUsername(std::string username, User& user) const {
 }
 
 Error GitLab::fetchUserByID(UserID id, User& user) const {
-	auto fetched = fetch(config, std::format("{}/users/{}", config.gitlabapi.baseUrl, id));
+	auto fetched = fetch(config, std20::format("{}/users/{}", config.gitlabapi.baseUrl, id));
 	if (!fetched.has_value())
 		return fetched.error();
 	auto& json = fetched.value();
@@ -65,7 +65,7 @@ Error GitLab::fetchUserByID(UserID id, User& user) const {
 }
 
 Error GitLab::fetchAuthorizedKeys(UserID id, std::vector<std::string>& keys) const {
-	auto fetched = fetch(config, std::format("{}/users/{}/keys", config.gitlabapi.baseUrl, id));
+	auto fetched = fetch(config, std20::format("{}/users/{}/keys", config.gitlabapi.baseUrl, id));
 	if (!fetched.has_value())
 		return fetched.error();
 	auto& json = fetched.value();
@@ -79,7 +79,7 @@ Error GitLab::fetchAuthorizedKeys(UserID id, std::vector<std::string>& keys) con
 }
 
 Error GitLab::fetchGroups(User& user) const {
-	auto fetched = fetch(config, std::format("{}/users/{}/memberships", config.gitlabapi.baseUrl, user.id));
+	auto fetched = fetch(config, std20::format("{}/users/{}/memberships", config.gitlabapi.baseUrl, user.id));
 	if (!fetched.has_value())
 		return fetched.error();
 	auto& json = fetched.value();
@@ -97,7 +97,7 @@ Error GitLab::fetchGroups(User& user) const {
 
 Error GitLab::fetchGroupByName(const std::string& groupname, Group& group) const {
 	/**  \todo should not hurt to apply url-encoding of the groupname **/
-	auto fetched = fetch(config, std::format("{}/groups?search={}&active=true", config.gitlabapi.baseUrl, groupname));
+	auto fetched = fetch(config, std20::format("{}/groups?search={}&active=true", config.gitlabapi.baseUrl, groupname));
 	if (!fetched.has_value())
 		return fetched.error();
 	auto& json = fetched.value();
@@ -115,7 +115,7 @@ Error GitLab::fetchGroupByName(const std::string& groupname, Group& group) const
 }
 
 Error GitLab::fetchGroupByID(GroupID id, Group& group) const {
-	auto fetched = fetch(config, std::format("{}/groups/{}?with_projects=false", config.gitlabapi.baseUrl, id));
+	auto fetched = fetch(config, std20::format("{}/groups/{}?with_projects=false", config.gitlabapi.baseUrl, id));
 	if (!fetched.has_value())
 		return fetched.error();
 	auto& json = fetched.value();
