@@ -9,7 +9,7 @@
     AuthorizedKeysCommandUser root
     ```
 4. Modify `/etc/gitlabnss/gitlabnss.conf` to fit your needs. Particularly: set `base_url` to the GitLab API endpoint of your choice and `secret` to a **FILE** that contains the API key (requires `read_api`). Make sure that the `secret` file can only be read by root (owner: `root` and permissions `0400`). 
-5. Start the service: On Ubuntu run `systemctl enable gitlabnssd` or `/etc/init.d/gitlabnssd start` to start the service.
+5. Start the service: `systemctl enable --now gitlabnssd`.
 
 ## How it Works
 **gitlabnssd** Daemon process that listens to a UNIX file socket (configured in `gitlabnss.conf`; default: `/var/run/gitlabnss.sock`) and provides means of fetching GitLab user information by ID or name. Technically, the consumers of this API (NSS and fetchgitlabkeys) could access the GitLab API directly but the API key then has to be readable by artbitrary users which is a security risk.
