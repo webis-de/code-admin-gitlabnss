@@ -66,10 +66,10 @@ if((CMAKE_PROJECT_NAME STREQUAL PROJECT_NAME))
             COMPONENT gitlabnss
         PERMISSIONS OWNER_READ OWNER_WRITE OWNER_EXECUTE GROUP_READ GROUP_EXECUTE WORLD_READ WORLD_EXECUTE
     )
-    install(FILES res/gitlabnssd
-        DESTINATION "/etc/init.d"
+    install(FILES res/gitlabnssd.service
+        DESTINATION "/usr/lib/systemd/system"
             COMPONENT gitlabnss
-        PERMISSIONS OWNER_READ OWNER_WRITE OWNER_EXECUTE
+        PERMISSIONS OWNER_READ OWNER_WRITE GROUP_READ WORLD_READ
     )
     install(FILES "res/gitlabnss.conf"
         DESTINATION "/etc/gitlabnss"

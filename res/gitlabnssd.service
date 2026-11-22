@@ -1,0 +1,16 @@
+[Unit]
+Description=GitLab NSS daemon
+Wants=network-online.target
+After=network-online.target
+Before=nss-user-lookup.target sshd.service ssh.service
+Wants=nss-user-lookup.target
+
+[Service]
+Type=simple
+ExecStart=/bin/gitlabnssd --foreground
+WorkingDirectory=/
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
